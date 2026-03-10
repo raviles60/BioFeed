@@ -111,4 +111,32 @@ router.get('/log/recent', async (req, res) => {
   }
 });
 
+// DELETE /api/feed/:ticker/purge — remove all feed items for a ticker (optional source filter)
+// Also accepts ?exclude=PATTERN to delete items whose title contains PATTERN
+// e.g. DELETE /api/feed/RLAY/purge?title=FOXO
+router.delete('/:ticker/purge', async (req, res) => {
+  try {
+    const ticker = req.params.ticker.toUpperCase();
+    const { source, title } = req.query;
+
+    let query = `DELETE FROM feed_items WHERE ticker = $1`;
+    const params = [ticker];
+
+    if (source) {
+      params.push(source);
+      query += ` AND source = $${params.length}`;
+    }
+    if (title) {
+      params.push(`%${title}%`);
+      query += ` AND title ILIKE $${params.length}`;
+    }
+
+    query += ` RETURNING id`;
+    const result = await pool.query(query, params);
+    res.json({ success: true, deleted: result.rowCount, ticker });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
