@@ -1,6 +1,6 @@
 {
   "name": "biofeed",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Biotech & Pharma Live Intelligence Feed",
   "main": "server.js",
   "scripts": {
