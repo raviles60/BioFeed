@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BioFeed — Biotech Intelligence</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: #07090f;
+      color: #d0daea;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0d1220; }
+    ::-webkit-scrollbar-thumb { background: #1e2d4a; border-radius: 3px; }
+    a { color: #00cfff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ── Source config ──────────────────────────────────────────────────────────
+const SOURCES = {
+  edgar:             { label: 'EDGAR',          abbr: 'ED',  color: '#f0c040' },
+  clinicaltrials:    { label: 'CT.gov',          abbr: 'CT',  color: '#bf80ff' },
+  openfda:           { label: 'openFDA',         abbr: 'FDA', color: '#00ff9d' },
+  rss_biopharmadive: { label: 'BioPharma Dive',  abbr: 'BPD', color: '#00cfff' },
+  rss_fiercebiotech: { label: 'Fierce Biotech',  abbr: 'FB',  color: '#4de8d4' },
+  rss_endpoints:     { label: 'Endpoints',       abbr: 'EP',  color: '#99aaff' },
+  rss_biospace:      { label: 'BioSpace',        abbr: 'BS',  color: '#ffaacc' },
+  stocktwits:        { label: 'StockTwits',      abbr: 'ST',  color: '#ff9d00' },
+};
+
+const SOURCE_KEYS = Object.keys(SOURCES);
+
+function sourceConfig(source) {
+  return SOURCES[source] || { label: source, abbr: source.slice(0,3).toUpperCase(), color: '#667799' };
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function getDaysUntil(dateStr) {
+  if (!dateStr) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const target = new Date(dateStr);
+  return Math.round((target - today) / 86400000);
+}
+
+function fmtDate(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+function fmtDateTime(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  return `${months[d.getMonth()]} ${d.getDate()} ${hh}:${mm}`;
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function catalystCountdown(dateStr) {
+  const days = getDaysUntil(dateStr);
+  if (days === null) return { text: 'NO DATE', color: '#445566' };
+  if (days < 0)  return { text: `${Math.abs(days)}D PAST`,  color: '#445566' };
+  if (days === 0) return { text: 'TODAY',     color: '#ff4444' };
+  if (days <= 3)  return { text: `${days}D`,  color: '#ff4444' };
+  if (days <= 7)  return { text: `${days}D`,  color: '#ff9d00' };
+  if (days <= 14) return { text: `${days}D`,  color: '#ffcc00' };
+  if (days <= 30) return { text: `${days}D`,  color: '#00cfff' };
+  return          { text: `${days}D`,          color: '#445566' };
+}
+
+// ── Sentiment Bar ──────────────────────────────────────────────────────────
+function SentimentBar({ company }) {
+  const bull = Number(company.latest_bull_percent || 0);
+  const bear = 100 - bull;
+  const total = company.latest_sentiment_total || 0;
+  const bullCount = company.latest_bull_count || 0;
+  const bearCount = company.latest_bear_count || 0;
+  const lastAt = company.last_sentiment_at;
+
+  if (!company.latest_bull_percent) {
+    return (
+      <div style={{ padding: '8px 14px', borderBottom: '1px solid #141e30', fontSize: '10px', color: '#334060', letterSpacing: '1px' }}>
+        SENTIMENT DATA PENDING...
+      </div>
+    );
+  }
+
+  const bullColor = bull > 60 ? '#00ff9d' : bull > 40 ? '#ffcc00' : '#ff4d6d';
+
+  return (
+    <div style={{ padding: '10px 14px', borderBottom: '1px solid #141e30', background: '#0a0f1a' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
+        <span style={{ fontSize: '9px', letterSpacing: '2px', color: '#ff9d00' }}>◈ STOCKTWITS SENTIMENT</span>
+        <span style={{ fontSize: '9px', color: '#334060' }}>{total} msgs · {timeAgo(lastAt)}</span>
+      </div>
+      <div style={{ display: 'flex', height: '6px', borderRadius: '3px', overflow: 'hidden', background: '#141e30' }}>
+        <div style={{ width: `${bull}%`, background: bullColor, transition: 'width 0.4s' }} />
+        <div style={{ width: `${bear}%`, background: '#ff4d6d44' }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+        <span style={{ fontSize: '10px', color: bullColor, fontWeight: '700' }}>▲ {bull.toFixed(1)}% BULL ({bullCount})</span>
+        <span style={{ fontSize: '10px', color: '#ff4d6d', fontWeight: '700' }}>▼ {bear.toFixed(1)}% BEAR ({bearCount})</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Feed Item Row ─────────────────────────────────────────────────────────
+function FeedItem({ item, showTicker }) {
+  const src = sourceConfig(item.source);
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div style={{
+      padding: '7px 14px',
+      borderBottom: '1px solid #0f1825',
+      borderLeft: `2px solid ${src.color}22`,
+      transition: 'background 0.15s',
+    }}
+    onMouseEnter={e => e.currentTarget.style.background = '#0e1627'}
+    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+        {/* Source badge */}
+        <span style={{
+          fontSize: '8px', letterSpacing: '1px', fontWeight: '700',
+          color: src.color, border: `1px solid ${src.color}55`,
+          padding: '1px 5px', whiteSpace: 'nowrap', flexShrink: 0,
+          marginTop: '1px',
+        }}>
+          {src.abbr}
+        </span>
+
+        {/* Title + meta */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', flexWrap: 'wrap' }}>
+            {showTicker && (
+              <span style={{ fontSize: '10px', fontWeight: '700', color: '#00cfff', flexShrink: 0 }}>
+                {item.ticker}
+              </span>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {item.url ? (
+                <a href={item.url} target="_blank" rel="noopener noreferrer"
+                  style={{ color: '#c8d8f0', fontSize: '11px', lineHeight: '1.4', wordBreak: 'break-word' }}>
+                  {item.title}
+                </a>
+              ) : (
+                <span style={{ color: '#c8d8f0', fontSize: '11px' }}>{item.title}</span>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '3px' }}>
+            <span style={{ fontSize: '9px', color: '#334060' }}>{fmtDateTime(item.published_at)}</span>
+            {item.summary && (
+              <button onClick={() => setExpanded(x => !x)}
+                style={{ background: 'none', border: 'none', color: '#334060', cursor: 'pointer', fontSize: '9px', padding: 0 }}>
+                {expanded ? '▲ hide' : '▼ detail'}
+              </button>
+            )}
+          </div>
+
+          {expanded && item.summary && (
+            <div style={{ marginTop: '5px', fontSize: '10px', color: '#556080', lineHeight: '1.5',
+              borderLeft: `2px solid ${src.color}33`, paddingLeft: '8px', fontStyle: 'italic' }}>
+              {item.summary}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Company Card ──────────────────────────────────────────────────────────
+function CompanyCard({ company, activeSourceFilter }) {
+  const [expanded, setExpanded] = useState(false);
+  const PREVIEW_COUNT = 8;
+
+  const countdown = catalystCountdown(company.catalyst_date);
+  const daysUntil = getDaysUntil(company.catalyst_date);
+  const showSentiment = daysUntil !== null && daysUntil >= 0 && daysUntil <= 14;
+
+  const items = (company.feed_items || [])
+    .filter(item => !activeSourceFilter || item.source === activeSourceFilter);
+
+  const visibleItems = expanded ? items : items.slice(0, PREVIEW_COUNT);
+  const hasMore = items.length > PREVIEW_COUNT;
+
+  return (
+    <div style={{
+      border: '1px solid #141e30',
+      borderTop: `2px solid ${countdown.color}66`,
+      background: '#0a0e1a',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      {/* Card Header */}
+      <div style={{
+        padding: '12px 14px 10px',
+        background: 'linear-gradient(180deg, #0d1525 0%, #0a0e1a 100%)',
+        borderBottom: '1px solid #141e30',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '3px' }}>
+              <span style={{ fontSize: '17px', fontWeight: '700', color: '#ffffff', letterSpacing: '1px' }}>
+                {company.ticker}
+              </span>
+              <span style={{
+                fontSize: '9px', letterSpacing: '1.5px', fontWeight: '700',
+                color: countdown.color,
+                border: `1px solid ${countdown.color}55`,
+                padding: '2px 7px',
+                background: `${countdown.color}11`,
+              }}>
+                {countdown.text}
+              </span>
+              {company.catalyst_type && (
+                <span style={{ fontSize: '8px', letterSpacing: '1px', color: '#445566',
+                  border: '1px solid #1a2540', padding: '2px 6px' }}>
+                  {company.catalyst_type.toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: '11px', color: '#6688aa' }}>{company.company_name}</div>
+          </div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            {company.catalyst_date && (
+              <div style={{ fontSize: '10px', color: '#334060' }}>{fmtDate(company.catalyst_date)}</div>
+            )}
+            <div style={{ fontSize: '9px', color: '#223040', marginTop: '2px' }}>
+              {company.item_count || 0} items
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sentiment bar — only within 14 days */}
+      {showSentiment && <SentimentBar company={company} />}
+
+      {/* Feed items */}
+      <div style={{ flex: 1 }}>
+        {visibleItems.length === 0 ? (
+          <div style={{ padding: '20px 14px', color: '#223040', fontSize: '10px', letterSpacing: '2px', textAlign: 'center' }}>
+            {activeSourceFilter ? `NO ${(SOURCES[activeSourceFilter]?.label || activeSourceFilter).toUpperCase()} ITEMS` : 'NO ITEMS YET'}
+          </div>
+        ) : (
+          visibleItems.map(item => (
+            <FeedItem key={item.id} item={item} showTicker={false} />
+          ))
+        )}
+      </div>
+
+      {/* Show more / less */}
+      {hasMore && (
+        <button
+          onClick={() => setExpanded(x => !x)}
+          style={{
+            background: 'transparent', border: 'none', borderTop: '1px solid #0f1825',
+            color: '#334060', cursor: 'pointer', padding: '8px', fontSize: '9px',
+            letterSpacing: '2px', width: '100%', textAlign: 'center',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#00cfff'; e.currentTarget.style.background = '#0d1525'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#334060'; e.currentTarget.style.background = 'transparent'; }}
+        >
+          {expanded ? `▲ SHOW LESS` : `▼ +${items.length - PREVIEW_COUNT} MORE`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Timeline View ─────────────────────────────────────────────────────────
+function TimelineView({ data, activeSourceFilter, onSourceFilter }) {
+  // Flatten all items from all companies
+  const allItems = [];
+  for (const company of data) {
+    for (const item of (company.feed_items || [])) {
+      allItems.push({ ...item, company_name: company.company_name, catalyst_date: company.catalyst_date });
+    }
+  }
+
+  // Sort newest first and apply source filter
+  const filtered = allItems
+    .filter(item => !activeSourceFilter || item.source === activeSourceFilter)
+    .sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0));
+
+  // Group by date
+  const grouped = {};
+  for (const item of filtered) {
+    const d = item.published_at ? new Date(item.published_at) : null;
+    const key = d ? `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}` : 'Unknown Date';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(item);
+  }
+
+  return (
+    <div>
+      {filtered.length === 0 ? (
+        <div style={{ padding: '80px 32px', textAlign: 'center', color: '#223040', fontSize: '11px', letterSpacing: '3px' }}>
+          NO ITEMS{activeSourceFilter ? ` FOR ${(SOURCES[activeSourceFilter]?.label || '').toUpperCase()}` : ''}
+        </div>
+      ) : (
+        Object.entries(grouped).map(([date, items]) => (
+          <div key={date}>
+            <div style={{ padding: '8px 24px', background: '#0a0e1a', borderBottom: '1px solid #0f1825',
+              fontSize: '9px', letterSpacing: '3px', color: '#334060', display: 'flex',
+              alignItems: 'center', gap: '12px' }}>
+              <span>{date.toUpperCase()}</span>
+              <span style={{ flex: 1, borderTop: '1px solid #141e30' }} />
+              <span>{items.length} items</span>
+            </div>
+            {items.map(item => (
+              <FeedItem key={`${item.source}-${item.id}`} item={item} showTicker={true} />
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ── Status Modal ──────────────────────────────────────────────────────────
+function StatusModal({ onClose }) {
+  const [log, setLog] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/feed/log/recent')
+      .then(r => r.json())
+      .then(data => { setLog(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
+      <div style={{ background: '#0a0e1a', border: '1px solid #1a2540', width: '680px',
+        maxWidth: '95vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '14px 20px', borderBottom: '1px solid #1a2540' }}>
+          <span style={{ fontSize: '10px', letterSpacing: '3px', color: '#00cfff' }}>FETCH LOG</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#556080',
+            cursor: 'pointer', fontSize: '16px' }}>✕</button>
+        </div>
+        <div style={{ overflow: 'auto', flex: 1 }}>
+          {loading ? (
+            <div style={{ padding: '20px', color: '#334060', textAlign: 'center' }}>Loading...</div>
+          ) : log.map(entry => (
+            <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: '80px 80px 1fr 60px 60px',
+              gap: '8px', padding: '6px 20px', borderBottom: '1px solid #0f1825', fontSize: '10px',
+              color: entry.error_message ? '#ff4d6d' : '#556080' }}>
+              <span style={{ color: entry.error_message ? '#ff4d6d' : '#00ff9d', fontWeight: '700' }}>
+                {entry.source}
+              </span>
+              <span>{entry.ticker || '—'}</span>
+              <span style={{ color: entry.error_message ? '#ff4d6d' : '#778899' }}>
+                {entry.error_message || `${entry.items_found} found, ${entry.items_new} new`}
+              </span>
+              <span style={{ color: '#334060' }}>{entry.duration_ms}ms</span>
+              <span style={{ color: '#334060' }}>{timeAgo(entry.ran_at)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Add Company Modal ─────────────────────────────────────────────────────
+function AddCompanyModal({ onClose, onAdded }) {
+  const [form, setForm] = useState({
+    ticker: '', company_name: '', short_name: '', cik: '',
+    catalyst_date: '', catalyst_type: 'PDUFA Date',
+    nda_application: '', nct_numbers: '', search_terms: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const CATALYST_TYPES = ['PDUFA Date','FDA Approval','Clinical Trial Result','Conference','Earnings','Partnership/M&A','Other'];
+
+  async function handleSave() {
+    if (!form.ticker || !form.company_name) {
+      setError('Ticker and company name are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const body = {
+        ...form,
+        ticker: form.ticker.toUpperCase(),
+        nct_numbers: form.nct_numbers ? form.nct_numbers.split(',').map(s => s.trim()).filter(Boolean) : [],
+        search_terms: form.search_terms ? form.search_terms.split(',').map(s => s.trim()).filter(Boolean) : [],
+      };
+      const res = await fetch('/api/companies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      onAdded();
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const fieldStyle = {
+    width: '100%', background: '#07090f', border: '1px solid #1a2540',
+    color: '#d0daea', padding: '7px 10px', fontSize: '12px',
+    fontFamily: 'Courier New, monospace', outline: 'none', boxSizing: 'border-box',
+  };
+  const labelStyle = {
+    display: 'block', fontSize: '9px', letterSpacing: '2px',
+    color: '#445566', marginBottom: '4px', textTransform: 'uppercase',
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
+      <div style={{ background: '#0a0e1a', border: '1px solid #1a2540', width: '520px',
+        maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '14px 20px', borderBottom: '1px solid #1a2540' }}>
+          <span style={{ fontSize: '10px', letterSpacing: '3px', color: '#00cfff' }}>ADD COMPANY</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#556080', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+        </div>
+
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            {[
+              { key: 'ticker', label: 'Ticker *', placeholder: 'ALDX' },
+              { key: 'cik', label: 'EDGAR CIK', placeholder: '1341235' },
+            ].map(f => (
+              <div key={f.key}>
+                <label style={labelStyle}>{f.label}</label>
+                <input style={fieldStyle} value={form[f.key]} placeholder={f.placeholder}
+                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} />
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <label style={labelStyle}>Company Name *</label>
+            <input style={fieldStyle} value={form.company_name} placeholder="Aldeyra Therapeutics, Inc."
+              onChange={e => setForm(p => ({ ...p, company_name: e.target.value }))} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Short Name (for RSS matching)</label>
+            <input style={fieldStyle} value={form.short_name} placeholder="Aldeyra"
+              onChange={e => setForm(p => ({ ...p, short_name: e.target.value }))} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={labelStyle}>Catalyst Date</label>
+              <input type="date" style={fieldStyle} value={form.catalyst_date}
+                onChange={e => setForm(p => ({ ...p, catalyst_date: e.target.value }))} />
+            </div>
+            <div>
+              <label style={labelStyle}>Catalyst Type</label>
+              <select style={fieldStyle} value={form.catalyst_type}
+                onChange={e => setForm(p => ({ ...p, catalyst_type: e.target.value }))}>
+                {CATALYST_TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={labelStyle}>NDA/BLA Number</label>
+              <input style={fieldStyle} value={form.nda_application} placeholder="NDA213062"
+                onChange={e => setForm(p => ({ ...p, nda_application: e.target.value }))} />
+            </div>
+            <div>
+              <label style={labelStyle}>NCT Numbers (comma-sep)</label>
+              <input style={fieldStyle} value={form.nct_numbers} placeholder="NCT04390165"
+                onChange={e => setForm(p => ({ ...p, nct_numbers: e.target.value }))} />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Extra Search Terms — drug names, aliases (comma-sep)</label>
+            <input style={fieldStyle} value={form.search_terms}
+              placeholder="reproxalap, ADX-2191, dry eye"
+              onChange={e => setForm(p => ({ ...p, search_terms: e.target.value }))} />
+          </div>
+
+          {error && <div style={{ color: '#ff4d6d', fontSize: '11px' }}>{error}</div>}
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '4px' }}>
+            <button onClick={onClose} style={{ background: 'transparent', border: '1px solid #1a2540',
+              color: '#556080', padding: '8px 18px', fontSize: '10px', letterSpacing: '2px',
+              cursor: 'pointer', fontFamily: 'Courier New, monospace' }}>CANCEL</button>
+            <button onClick={handleSave} disabled={saving}
+              style={{ background: saving ? '#1a2540' : '#00cfff', border: 'none',
+                color: saving ? '#334060' : '#07090f', padding: '8px 24px', fontSize: '10px',
+                letterSpacing: '2px', cursor: saving ? 'not-allowed' : 'pointer',
+                fontFamily: 'Courier New, monospace', fontWeight: '700' }}>
+              {saving ? 'SAVING...' : 'ADD COMPANY'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────
+function App() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [activeTab, setActiveTab] = useState('cards'); // 'cards' | 'timeline'
+  const [activeSourceFilter, setActiveSourceFilter] = useState('');
+  const [showStatus, setShowStatus] = useState(false);
+  const [showAddCompany, setShowAddCompany] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [fetchMsg, setFetchMsg] = useState('');
+  const refreshTimer = useRef(null);
+
+  const loadDashboard = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const res = await fetch('/api/feed/dashboard');
+      const json = await res.json();
+      setData(Array.isArray(json) ? json : []);
+      setLastUpdated(new Date());
+    } catch (e) {
+      console.error('Dashboard load error', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDashboard();
+    // Auto-refresh every 5 minutes
+    refreshTimer.current = setInterval(() => loadDashboard(true), 5 * 60 * 1000);
+    return () => clearInterval(refreshTimer.current);
+  }, [loadDashboard]);
+
+  async function triggerFetch() {
+    setFetching(true);
+    setFetchMsg('Fetch cycle started...');
+    try {
+      await fetch('/api/fetch/run', { method: 'POST' });
+      setFetchMsg('Running — refreshing in 15s');
+      setTimeout(() => {
+        loadDashboard(true);
+        setFetchMsg('');
+        setFetching(false);
+      }, 15000);
+    } catch (e) {
+      setFetchMsg('Error triggering fetch');
+      setFetching(false);
+    }
+  }
+
+  const totalItems = data.reduce((acc, c) => acc + (c.feed_items?.length || 0), 0);
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+
+      {/* ── Header ───────────────────────────────────────────────────────── */}
+      <div style={{
+        background: 'linear-gradient(180deg, #0d1528 0%, #07090f 100%)',
+        borderBottom: '1px solid #141e30',
+        padding: '16px 24px',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+        gap: '16px', flexWrap: 'wrap',
+      }}>
+        <div>
+          <div style={{ fontSize: '9px', letterSpacing: '4px', color: '#00cfff', marginBottom: '2px' }}>
+            BIOTECH & PHARMA
+          </div>
+          <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', letterSpacing: '1px',
+            fontFamily: 'Georgia, serif' }}>
+            Intelligence Feed
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Stats */}
+          <div style={{ display: 'flex', gap: '20px' }}>
+            {[
+              { val: data.length, label: 'TRACKED', color: '#00cfff' },
+              { val: totalItems, label: 'ITEMS', color: '#00ff9d' },
+            ].map(s => (
+              <div key={s.label} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: s.color }}>{s.val}</div>
+                <div style={{ fontSize: '8px', letterSpacing: '2px', color: '#334060' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Last updated */}
+          <div style={{ fontSize: '9px', color: '#334060', letterSpacing: '1px' }}>
+            {lastUpdated ? `UPDATED ${timeAgo(lastUpdated)}` : '—'}
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={() => setShowStatus(true)}
+              style={{ background: 'transparent', border: '1px solid #1a2540', color: '#556080',
+                padding: '7px 12px', fontSize: '9px', letterSpacing: '2px', cursor: 'pointer',
+                fontFamily: 'Courier New, monospace' }}>
+              LOG
+            </button>
+            <button onClick={triggerFetch} disabled={fetching}
+              style={{ background: 'transparent', border: `1px solid ${fetching ? '#1a2540' : '#334060'}`,
+                color: fetching ? '#334060' : '#778899', padding: '7px 14px', fontSize: '9px',
+                letterSpacing: '2px', cursor: fetching ? 'not-allowed' : 'pointer',
+                fontFamily: 'Courier New, monospace' }}>
+              {fetching ? 'FETCHING...' : '↻ FETCH'}
+            </button>
+            <button onClick={() => setShowAddCompany(true)}
+              style={{ background: '#00cfff', border: 'none', color: '#07090f',
+                padding: '7px 16px', fontSize: '9px', letterSpacing: '2px', cursor: 'pointer',
+                fontFamily: 'Courier New, monospace', fontWeight: '700' }}>
+              + COMPANY
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Fetch status bar */}
+      {fetchMsg && (
+        <div style={{ background: '#0d1525', borderBottom: '1px solid #141e30', padding: '6px 24px',
+          fontSize: '10px', color: '#ff9d00', letterSpacing: '2px' }}>
+          {fetchMsg}
+        </div>
+      )}
+
+      {/* ── Filter / Tab Bar ─────────────────────────────────────────────── */}
+      <div style={{ background: '#07090f', borderBottom: '1px solid #0f1825',
+        padding: '10px 24px', display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+
+        {/* Tab switcher */}
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {[['cards', 'CARDS'], ['timeline', 'TIMELINE']].map(([key, label]) => (
+            <button key={key} onClick={() => setActiveTab(key)}
+              style={{ background: activeTab === key ? '#0d1525' : 'transparent',
+                border: `1px solid ${activeTab === key ? '#00cfff33' : '#1a2540'}`,
+                color: activeTab === key ? '#00cfff' : '#445566',
+                padding: '5px 14px', fontSize: '9px', letterSpacing: '2px',
+                cursor: 'pointer', fontFamily: 'Courier New, monospace' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Source filter pills */}
+        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+          <button onClick={() => setActiveSourceFilter('')}
+            style={{ background: !activeSourceFilter ? '#1a2540' : 'transparent',
+              border: '1px solid #1a2540', color: !activeSourceFilter ? '#aabbcc' : '#445566',
+              padding: '3px 10px', fontSize: '8px', letterSpacing: '1.5px',
+              cursor: 'pointer', fontFamily: 'Courier New, monospace' }}>
+            ALL
+          </button>
+          {SOURCE_KEYS.map(key => {
+            const src = SOURCES[key];
+            const active = activeSourceFilter === key;
+            return (
+              <button key={key} onClick={() => setActiveSourceFilter(active ? '' : key)}
+                style={{ background: active ? `${src.color}22` : 'transparent',
+                  border: `1px solid ${active ? src.color + '66' : '#1a2540'}`,
+                  color: active ? src.color : '#445566',
+                  padding: '3px 10px', fontSize: '8px', letterSpacing: '1px',
+                  cursor: 'pointer', fontFamily: 'Courier New, monospace' }}>
+                {src.abbr}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Content ──────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, padding: activeTab === 'cards' ? '20px 20px' : '0' }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '80px', color: '#334060',
+            fontSize: '11px', letterSpacing: '3px' }}>
+            LOADING INTELLIGENCE FEED...
+          </div>
+        ) : data.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '80px 32px', color: '#334060',
+            border: '1px dashed #141e30', margin: '20px' }}>
+            <div style={{ fontSize: '11px', letterSpacing: '3px', marginBottom: '12px' }}>
+              NO COMPANIES TRACKED
+            </div>
+            <div style={{ fontSize: '10px', color: '#223040' }}>
+              Click <span style={{ color: '#00cfff' }}>+ COMPANY</span> to add your first ticker.
+              Then visit <a href="/api/setup" style={{ color: '#00cfff' }}>/api/setup</a> if you haven't initialized the database.
+            </div>
+          </div>
+        ) : activeTab === 'cards' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))',
+            gap: '16px' }}>
+            {data.map(company => (
+              <CompanyCard
+                key={company.ticker}
+                company={company}
+                activeSourceFilter={activeSourceFilter}
+              />
+            ))}
+          </div>
+        ) : (
+          <TimelineView
+            data={data}
+            activeSourceFilter={activeSourceFilter}
+            onSourceFilter={setActiveSourceFilter}
+          />
+        )}
+      </div>
+
+      {/* ── Modals ────────────────────────────────────────────────────────── */}
+      {showStatus && <StatusModal onClose={() => setShowStatus(false)} />}
+      {showAddCompany && (
+        <AddCompanyModal
+          onClose={() => setShowAddCompany(false)}
+          onAdded={() => setTimeout(() => loadDashboard(true), 1000)}
+        />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
