@@ -213,7 +213,6 @@ function CompanyCard({ company, activeSourceFilter }) {
 
   const countdown = catalystCountdown(company.catalyst_date);
   const daysUntil = getDaysUntil(company.catalyst_date);
-  const showSentiment = daysUntil !== null && daysUntil >= 0 && daysUntil <= 14;
 
   const items = (company.feed_items || [])
     .filter(item => !activeSourceFilter || item.source === activeSourceFilter);
@@ -270,8 +269,8 @@ function CompanyCard({ company, activeSourceFilter }) {
         </div>
       </div>
 
-      {/* Sentiment bar — only within 14 days */}
-      {showSentiment && <SentimentBar company={company} />}
+      {/* Sentiment bar — all active companies */}
+      <SentimentBar company={company} />
 
       {/* Feed items */}
       <div style={{ flex: 1 }}>
