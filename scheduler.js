@@ -12,6 +12,7 @@ const edgar = require('./fetchers/edgar');
 const clinicalTrials = require('./fetchers/clinicaltrials');
 const openFda = require('./fetchers/openfda');
 const rss = require('./fetchers/rss');
+const webSearch = require('./fetchers/websearch');
 const stocktwits = require('./fetchers/stocktwits');
 
 let isRunning = false;
@@ -69,7 +70,14 @@ async function runAllFetchers() {
     console.error('[SCHEDULER] RSS fatal error:', err.message);
   }
 
-  // ── 2. Per-company fetchers ────────────────────────────────────────────────
+  // ── 2. Web Search — Google News RSS per company ───────────────────────────
+  try {
+    await webSearch.run(companies);
+  } catch (err) {
+    console.error('[SCHEDULER] WebSearch fatal error:', err.message);
+  }
+
+  // ── 3. Per-company fetchers ────────────────────────────────────────────────
   for (const company of companies) {
     const daysUntil = getDaysUntil(company.catalyst_date);
 
