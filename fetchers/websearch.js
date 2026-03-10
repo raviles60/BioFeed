@@ -28,29 +28,20 @@ function delay(ms) {
 }
 
 function buildQuery(company) {
-  // Start with ticker — most precise anchor
+  // Keep Google News queries tight: TICKER + "Company Name" only.
+  // Adding quoted drug names ANDs them as required terms → zero results for
+  // companies whose articles don't mention the compound ID in every piece.
   const parts = [company.ticker];
 
-  // Add short name or first meaningful word of company name
   const nameBase = company.short_name
     || company.company_name
         .replace(/,?\s*(Inc|LLC|Corp|Ltd|Therapeutics|Pharmaceuticals|Sciences|Biosciences|Biotechnology)\.?$/i, '')
         .trim();
 
-  // Quote multi-word names; single words added bare
   if (nameBase.includes(' ')) {
     parts.push(`"${nameBase}"`);
   } else {
     parts.push(nameBase);
-  }
-
-  // Add up to 2 drug names from search_terms (skip generic/short terms)
-  const drugTerms = (company.search_terms || [])
-    .filter(t => t.length >= 5)
-    .slice(0, 2);
-
-  for (const term of drugTerms) {
-    parts.push(`"${term}"`);
   }
 
   return parts.join(' ');
