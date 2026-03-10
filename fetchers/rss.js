@@ -40,9 +40,18 @@ const FEEDS = [
   {
     source: 'rss_biospace',
     label: 'BioSpace',
-    url: 'https://www.biospace.com/rss/news/',
+    url: 'https://www.biospace.com/index.rss',  // fixed: was /rss/news/ (404)
   },
 ];
+
+// Strip HTML tags from a string — fixes Fierce Biotech titles which contain raw <a> elements
+function stripHtml(str) {
+  if (typeof str !== 'string') {
+    // rss-parser may return an object if the field contains XML elements
+    try { str = JSON.stringify(str); } catch (_) { return ''; }
+  }
+  return str.replace(/<[^>]*>/g, '').trim();
+}
 
 // Build the full set of match terms for a company (lowercase)
 function getTerms(company) {
@@ -70,8 +79,11 @@ async function run(companies) {
       const feedItems = feedData.items || [];
 
       for (const item of feedItems) {
+        // Sanitize title — Fierce Biotech embeds raw HTML anchor tags in titles
+        const cleanTitle = stripHtml(item.title || '');
+
         const searchText = [
-          item.title || '',
+          cleanTitle,
           item.contentSnippet || '',
           item.content || '',
           item.summary || '',
@@ -105,7 +117,7 @@ async function run(companies) {
                 company.ticker,
                 feed.source,
                 externalId,
-                item.title || '(no title)',
+                cleanTitle || '(no title)',
                 summary,
                 item.link || item.url || null,
                 pubDate,
