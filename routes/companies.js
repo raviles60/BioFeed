@@ -1,6 +1,46 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const axios = require('axios');
+
+const TICKER_MAP_URL = 'https://www.sec.gov/files/company_tickers.json';
+const EDGAR_HEADERS  = { 'User-Agent': 'BioFeed biofeed-app/1.0 research@biofeed.app' };
+
+// Cache the ticker→CIK map in memory (refreshes on process restart)
+let _tickerMapCache = null;
+let _tickerMapFetchedAt = 0;
+
+async function getTickerMap() {
+  const AGE_MS = 6 * 60 * 60 * 1000; // re-fetch at most every 6 hours
+  if (_tickerMapCache && Date.now() - _tickerMapFetchedAt < AGE_MS) return _tickerMapCache;
+  const res = await axios.get(TICKER_MAP_URL, { headers: EDGAR_HEADERS, timeout: 15000 });
+  // Response is { "0": { cik_str, ticker, title }, "1": { ... }, ... }
+  const map = {};
+  for (const entry of Object.values(res.data)) {
+    map[entry.ticker.toUpperCase()] = {
+      cik: String(entry.cik_str).padStart(10, '0'),
+      title: entry.title,
+    };
+  }
+  _tickerMapCache = map;
+  _tickerMapFetchedAt = Date.now();
+  return map;
+}
+
+// GET /api/companies/lookup/:ticker — auto-resolve CIK + company name from SEC EDGAR
+router.get('/lookup/:ticker', async (req, res) => {
+  try {
+    const ticker = req.params.ticker.toUpperCase();
+    const map = await getTickerMap();
+    const entry = map[ticker];
+    if (!entry) {
+      return res.json({ found: false, ticker, cik: null, company_name: null });
+    }
+    res.json({ found: true, ticker, cik: entry.cik, company_name: entry.title });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /api/companies — all active companies with stats
 router.get('/', async (req, res) => {
