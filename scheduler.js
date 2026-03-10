@@ -3,7 +3,7 @@
  * - Called by cron every 30 minutes and once on startup
  * - RSS runs once per cycle (single pass across all 4 feeds, matched per company)
  * - Per-company fetchers: EDGAR, ClinicalTrials, openFDA
- * - StockTwits: only for companies with catalyst_date within 14 days
+ * - StockTwits: all active companies
  * - 500ms delay between per-company API calls to be a polite client
  */
 
@@ -79,8 +79,6 @@ async function runAllFetchers() {
 
   // ── 3. Per-company fetchers ────────────────────────────────────────────────
   for (const company of companies) {
-    const daysUntil = getDaysUntil(company.catalyst_date);
-
     // EDGAR
     try { await edgar.run(company); } catch (e) { console.error('[EDGAR] fatal:', e.message); }
     await delay(500);
@@ -93,12 +91,9 @@ async function runAllFetchers() {
     try { await openFda.run(company); } catch (e) { console.error('[FDA] fatal:', e.message); }
     await delay(500);
 
-    // StockTwits — only within 14-day window before catalyst
-    if (daysUntil !== null && daysUntil >= 0 && daysUntil <= 14) {
-      console.log(`[SCHEDULER] ${company.ticker} is ${daysUntil}d out — fetching sentiment`);
-      try { await stocktwits.run(company); } catch (e) { console.error('[ST] fatal:', e.message); }
-      await delay(500);
-    }
+    // StockTwits — all active companies
+    try { await stocktwits.run(company); } catch (e) { console.error('[ST] fatal:', e.message); }
+    await delay(500);
   }
 
   const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
