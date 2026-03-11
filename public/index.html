@@ -411,7 +411,7 @@ function StatusModal({ onClose }) {
 
 // ── Edit Company Modal ────────────────────────────────────────────
 function EditCompanyModal({ company, onClose, onSaved }) {
-  const [form, setForm] = React.useState({
+  const [form, setForm] = useState({
     company_name:    company.company_name    || '',
     short_name:      company.short_name      || '',
     catalyst_date:   company.catalyst_date   ? company.catalyst_date.slice(0,10) : '',
@@ -421,9 +421,9 @@ function EditCompanyModal({ company, onClose, onSaved }) {
     nct_numbers:     Array.isArray(company.nct_numbers) ? company.nct_numbers.join(', ') : (company.nct_numbers || ''),
     search_terms:    Array.isArray(company.search_terms) ? company.search_terms.join(', ') : (company.search_terms || ''),
   });
-  const [saving, setSaving]           = React.useState(false);
-  const [error, setError]             = React.useState('');
-  const [showAdvanced, setShowAdvanced] = React.useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const CATALYST_TYPES = ['PDUFA Date','FDA Approval','Clinical Trial Result','Conference','Earnings','Partnership/M&A','Other'];
 
@@ -436,7 +436,7 @@ function EditCompanyModal({ company, onClose, onSaved }) {
         nct_numbers:  form.nct_numbers  ? form.nct_numbers.split(',').map(s => s.trim()).filter(Boolean)  : [],
         search_terms: form.search_terms ? form.search_terms.split(',').map(s => s.trim()).filter(Boolean) : [],
       };
-      const res = await fetch(\`/api/companies/\${company.ticker}\`, {
+      const res = await fetch(`/api/companies/${company.ticker}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
