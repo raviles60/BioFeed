@@ -207,7 +207,7 @@ function FeedItem({ item, showTicker }) {
 }
 
 // ── Company Card ──────────────────────────────────────────────────────────
-function CompanyCard({ company, activeSourceFilter }) {
+function CompanyCard({ company, activeSourceFilter, onEdit }) {
   const [expanded, setExpanded] = useState(false);
   const PREVIEW_COUNT = 8;
 
@@ -265,6 +265,14 @@ function CompanyCard({ company, activeSourceFilter }) {
             <div style={{ fontSize: '9px', color: '#223040', marginTop: '2px' }}>
               {company.item_count || 0} items
             </div>
+            <button
+              onClick={() => onEdit && onEdit(company)}
+              title="Edit company"
+              style={{ background: 'transparent', border: 'none', color: '#334060', cursor: 'pointer',
+                fontSize: '13px', padding: '4px 2px', marginTop: '4px' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#00cfff'}
+              onMouseLeave={e => e.currentTarget.style.color = '#334060'}
+            >✎</button>
           </div>
         </div>
       </div>
@@ -395,6 +403,163 @@ function StatusModal({ onClose }) {
               <span style={{ color: '#334060' }}>{timeAgo(entry.ran_at)}</span>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit Company Modal ────────────────────────────────────────────
+function EditCompanyModal({ company, onClose, onSaved }) {
+  const [form, setForm] = React.useState({
+    company_name:    company.company_name    || '',
+    short_name:      company.short_name      || '',
+    catalyst_date:   company.catalyst_date   ? company.catalyst_date.slice(0,10) : '',
+    catalyst_type:   company.catalyst_type   || 'PDUFA Date',
+    cik:             company.cik             || '',
+    nda_application: company.nda_application || '',
+    nct_numbers:     Array.isArray(company.nct_numbers) ? company.nct_numbers.join(', ') : (company.nct_numbers || ''),
+    search_terms:    Array.isArray(company.search_terms) ? company.search_terms.join(', ') : (company.search_terms || ''),
+  });
+  const [saving, setSaving]           = React.useState(false);
+  const [error, setError]             = React.useState('');
+  const [showAdvanced, setShowAdvanced] = React.useState(false);
+
+  const CATALYST_TYPES = ['PDUFA Date','FDA Approval','Clinical Trial Result','Conference','Earnings','Partnership/M&A','Other'];
+
+  async function handleSave() {
+    if (!form.company_name) { setError('Company name is required'); return; }
+    setSaving(true);
+    try {
+      const body = {
+        ...form,
+        nct_numbers:  form.nct_numbers  ? form.nct_numbers.split(',').map(s => s.trim()).filter(Boolean)  : [],
+        search_terms: form.search_terms ? form.search_terms.split(',').map(s => s.trim()).filter(Boolean) : [],
+      };
+      const res = await fetch(\`/api/companies/\${company.ticker}\`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      onSaved();
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const fieldStyle = {
+    width: '100%', background: '#07090f', border: '1px solid #1a2540',
+    color: '#d0daea', padding: '7px 10px', fontSize: '12px',
+    fontFamily: 'Courier New, monospace', outline: 'none', boxSizing: 'border-box',
+  };
+  const labelStyle = {
+    display: 'block', fontSize: '9px', letterSpacing: '2px',
+    color: '#445566', marginBottom: '4px', textTransform: 'uppercase',
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
+      <div style={{ background: '#0a0e1a', border: '1px solid #1a2540', width: '520px',
+        maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '14px 20px', borderBottom: '1px solid #1a2540' }}>
+          <span style={{ fontSize: '10px', letterSpacing: '3px', color: '#ff9d00' }}>
+            EDIT — {company.ticker}
+          </span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#556080', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+        </div>
+
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+          <div>
+            <label style={labelStyle}>Company Name *</label>
+            <input style={fieldStyle} value={form.company_name}
+              onChange={e => setForm(p => ({ ...p, company_name: e.target.value }))} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={labelStyle}>Catalyst Date</label>
+              <input type="date" style={fieldStyle} value={form.catalyst_date}
+                onChange={e => setForm(p => ({ ...p, catalyst_date: e.target.value }))} />
+            </div>
+            <div>
+              <label style={labelStyle}>Catalyst Type</label>
+              <select style={fieldStyle} value={form.catalyst_type}
+                onChange={e => setForm(p => ({ ...p, catalyst_type: e.target.value }))}>
+                {CATALYST_TYPES.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <button onClick={() => setShowAdvanced(x => !x)}
+              style={{ background: 'transparent', border: '1px solid #1a2540',
+                color: '#445566', padding: '5px 12px', fontSize: '9px',
+                letterSpacing: '2px', cursor: 'pointer',
+                fontFamily: 'Courier New, monospace', width: '100%', textAlign: 'left' }}>
+              {showAdvanced ? '▲ HIDE ADVANCED' : '▼ ADVANCED (CIK, NDA/BLA, NCT#, search terms)'}
+            </button>
+          </div>
+
+          {showAdvanced && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={labelStyle}>EDGAR CIK</label>
+                  <input style={fieldStyle} value={form.cik}
+                    onChange={e => setForm(p => ({ ...p, cik: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Short Name (RSS matching)</label>
+                  <input style={fieldStyle} value={form.short_name}
+                    onChange={e => setForm(p => ({ ...p, short_name: e.target.value }))} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={labelStyle}>NDA/BLA Number</label>
+                  <input style={fieldStyle} value={form.nda_application}
+                    onChange={e => setForm(p => ({ ...p, nda_application: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={labelStyle}>NCT Numbers (comma-sep)</label>
+                  <input style={fieldStyle} value={form.nct_numbers}
+                    onChange={e => setForm(p => ({ ...p, nct_numbers: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Extra Search Terms (comma-sep)</label>
+                <input style={fieldStyle} value={form.search_terms}
+                  onChange={e => setForm(p => ({ ...p, search_terms: e.target.value }))} />
+              </div>
+            </>
+          )}
+
+          {error && <div style={{ color: '#ff4d6d', fontSize: '11px' }}>{error}</div>}
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '4px' }}>
+            <button onClick={onClose} style={{ background: 'transparent', border: '1px solid #1a2540',
+              color: '#556080', padding: '8px 18px', fontSize: '10px', letterSpacing: '2px',
+              cursor: 'pointer', fontFamily: 'Courier New, monospace' }}>CANCEL</button>
+            <button onClick={handleSave} disabled={saving || !form.company_name}
+              style={{
+                background: (saving || !form.company_name) ? '#1a2540' : '#ff9d00',
+                border: 'none',
+                color: (saving || !form.company_name) ? '#334060' : '#07090f',
+                padding: '8px 24px', fontSize: '10px', letterSpacing: '2px',
+                cursor: (saving || !form.company_name) ? 'not-allowed' : 'pointer',
+                fontFamily: 'Courier New, monospace', fontWeight: '700',
+              }}>
+              {saving ? 'SAVING...' : 'SAVE CHANGES'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -635,6 +800,7 @@ function App() {
   const [activeSourceFilter, setActiveSourceFilter] = useState('');
   const [showStatus, setShowStatus] = useState(false);
   const [showAddCompany, setShowAddCompany] = useState(false);
+  const [editingCompany, setEditingCompany] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [fetchMsg, setFetchMsg] = useState('');
   const refreshTimer = useRef(null);
@@ -822,6 +988,7 @@ function App() {
                 key={company.ticker}
                 company={company}
                 activeSourceFilter={activeSourceFilter}
+                onEdit={c => setEditingCompany(c)}
               />
             ))}
           </div>
@@ -836,6 +1003,13 @@ function App() {
 
       {/* ── Modals ────────────────────────────────────────────────────────── */}
       {showStatus && <StatusModal onClose={() => setShowStatus(false)} />}
+      {editingCompany && (
+        <EditCompanyModal
+          company={editingCompany}
+          onClose={() => setEditingCompany(null)}
+          onSaved={() => { setEditingCompany(null); setTimeout(() => loadDashboard(true), 500); }}
+        />
+      )}
       {showAddCompany && (
         <AddCompanyModal
           onClose={() => setShowAddCompany(false)}
