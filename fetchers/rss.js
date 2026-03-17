@@ -21,12 +21,12 @@ const FEEDS = [
   {
     source: 'rss_globenewswire_biotech',
     label: 'GlobeNewswire',
-    url: 'https://www.globenewswire.com/RssFeed/industry/biotechnology',
+    url: 'https://www.globenewswire.com/RssFeed/industry/4573-Biotechnology/feedTitle/GlobeNewswire',
   },
   {
     source: 'rss_globenewswire_pharma',
     label: 'GlobeNewswire',
-    url: 'https://www.globenewswire.com/RssFeed/industry/pharmaceuticals',
+    url: 'https://www.globenewswire.com/RssFeed/industry/4577-Pharmaceuticals/feedTitle/GlobeNewswire',
   },
   {
     source: 'rss_prnewswire_biotech',
