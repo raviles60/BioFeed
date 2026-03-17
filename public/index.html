@@ -260,8 +260,8 @@ function CompanyCard({ company, activeSourceFilter, onEdit }) {
                 {countdown.text}
               </span>
               {company.catalyst_type && (
-                <span style={{ fontSize: '8px', letterSpacing: '1px', color: '#445566',
-                  border: '1px solid #1a2540', padding: '2px 6px' }}>
+                <span style={{ fontSize: '8px', letterSpacing: '1px', color: '#8899bb',
+                  border: '1px solid #2a3a5a', padding: '2px 6px' }}>
                   {company.catalyst_type.toUpperCase()}
                 </span>
               )}
@@ -270,7 +270,7 @@ function CompanyCard({ company, activeSourceFilter, onEdit }) {
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             {company.catalyst_date && (
-              <div style={{ fontSize: '10px', color: '#334060' }}>{fmtDate(company.catalyst_date)}</div>
+              <div style={{ fontSize: '10px', color: '#778899' }}>{fmtDate(company.catalyst_date)}</div>
             )}
             <div style={{ fontSize: '9px', color: '#223040', marginTop: '2px' }}>
               {company.item_count || 0} items
@@ -884,20 +884,20 @@ function App() {
             ].map(s => (
               <div key={s.label} style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '20px', fontWeight: '700', color: s.color }}>{s.val}</div>
-                <div style={{ fontSize: '8px', letterSpacing: '2px', color: '#334060' }}>{s.label}</div>
+                <div style={{ fontSize: '8px', letterSpacing: '2px', color: '#778899' }}>{s.label}</div>
               </div>
             ))}
           </div>
 
           {/* Last updated */}
-          <div style={{ fontSize: '9px', color: '#334060', letterSpacing: '1px' }}>
+          <div style={{ fontSize: '9px', color: '#778899', letterSpacing: '1px' }}>
             {lastUpdated ? `UPDATED ${timeAgo(lastUpdated)}` : '—'}
           </div>
 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={() => setShowStatus(true)}
-              style={{ background: 'transparent', border: '1px solid #1a2540', color: '#556080',
+              style={{ background: 'transparent', border: '1px solid #2a3a5a', color: '#8899bb',
                 padding: '7px 12px', fontSize: '9px', letterSpacing: '2px', cursor: 'pointer',
                 fontFamily: 'Courier New, monospace' }}>
               LOG
@@ -938,7 +938,7 @@ function App() {
             <button key={key} onClick={() => setActiveTab(key)}
               style={{ background: activeTab === key ? '#0d1525' : 'transparent',
                 border: `1px solid ${activeTab === key ? '#00cfff33' : '#1a2540'}`,
-                color: activeTab === key ? '#00cfff' : '#445566',
+                color: activeTab === key ? '#00cfff' : '#8899bb',
                 padding: '5px 14px', fontSize: '9px', letterSpacing: '2px',
                 cursor: 'pointer', fontFamily: 'Courier New, monospace' }}>
               {label}
