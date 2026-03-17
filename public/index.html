@@ -37,15 +37,13 @@ const { useState, useEffect, useCallback, useRef } = React;
 
 // ── Source config ──────────────────────────────────────────────────────────
 const SOURCES = {
-  edgar:             { label: 'EDGAR',          abbr: 'ED',  color: '#f0c040' },
-  clinicaltrials:    { label: 'CT.gov',          abbr: 'CT',  color: '#bf80ff' },
-  openfda:           { label: 'openFDA',         abbr: 'FDA', color: '#00ff9d' },
-  rss_biopharmadive: { label: 'BioPharma Dive',  abbr: 'BPD', color: '#00cfff' },
-  rss_fiercebiotech: { label: 'Fierce Biotech',  abbr: 'FB',  color: '#4de8d4' },
-  rss_endpoints:     { label: 'Endpoints',       abbr: 'EP',  color: '#99aaff' },
-  rss_biospace:      { label: 'BioSpace',        abbr: 'BS',  color: '#ffaacc' },
-  stocktwits:        { label: 'StockTwits',      abbr: 'ST',  color: '#ff9d00' },
-  websearch:         { label: 'Web Search',      abbr: 'WS',  color: '#c084fc' },
+  edgar:                { label: 'EDGAR',          abbr: 'ED',  color: '#f0c040' },
+  clinicaltrials:       { label: 'CT.gov',          abbr: 'CT',  color: '#bf80ff' },
+  openfda:              { label: 'openFDA',         abbr: 'FDA', color: '#00ff9d' },
+  rss_rttnews_biotech:  { label: 'RTTNews',         abbr: 'RTT', color: '#00cfff' },
+  rss_rttnews_health:   { label: 'RTTNews',         abbr: 'RTT', color: '#00cfff' },
+  stocktwits:           { label: 'StockTwits',      abbr: 'ST',  color: '#ff9d00' },
+  websearch:            { label: 'Web Search',      abbr: 'WS',  color: '#c084fc' },
 };
 
 const SOURCE_KEYS = Object.keys(SOURCES);
@@ -177,18 +175,30 @@ function FeedItem({ item, showTicker }) {
                 <a href={item.url} target="_blank" rel="noopener noreferrer"
                   style={{ color: '#c8d8f0', fontSize: '11px', lineHeight: '1.4', wordBreak: 'break-word' }}>
                   {item.title}
+                  {item.raw_data?.feed && (
+                    <span style={{ color: '#445566', fontSize: '10px', marginLeft: '6px', fontStyle: 'normal' }}>
+                      ({item.raw_data.feed})
+                    </span>
+                  )}
                 </a>
               ) : (
-                <span style={{ color: '#c8d8f0', fontSize: '11px' }}>{item.title}</span>
+                <span style={{ color: '#c8d8f0', fontSize: '11px' }}>
+                  {item.title}
+                  {item.raw_data?.feed && (
+                    <span style={{ color: '#445566', fontSize: '10px', marginLeft: '6px' }}>
+                      ({item.raw_data.feed})
+                    </span>
+                  )}
+                </span>
               )}
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '3px' }}>
-            <span style={{ fontSize: '9px', color: '#334060' }}>{fmtDateTime(item.published_at)}</span>
+            <span style={{ fontSize: '9px', color: '#778899' }}>{fmtDateTime(item.published_at)}</span>
             {item.summary && (
               <button onClick={() => setExpanded(x => !x)}
-                style={{ background: 'none', border: 'none', color: '#334060', cursor: 'pointer', fontSize: '9px', padding: 0 }}>
+                style={{ background: 'none', border: 'none', color: '#778899', cursor: 'pointer', fontSize: '9px', padding: 0 }}>
                 {expanded ? '▲ hide' : '▼ detail'}
               </button>
             )}
@@ -1024,3 +1034,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>
+
