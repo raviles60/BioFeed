@@ -1,15 +1,11 @@
 /**
  * RSS News Feed Fetcher
- * Sources: BioPharma Dive, Fierce Biotech, Endpoints News, BioSpace
+ * Sources: RTTNews Biotech, RTTNews Health News
  *
  * Matching strategy:
  *   For each article, check full text (title + snippet) against each company's
  *   search_terms array. Terms include: ticker, full name, short name, drug names.
- *   Match is case-insensitive substring. No regex — simple and reliable.
- *
- * Accuracy expectation:
- *   ~90% recall on major news (misses only when article uses unknown alias)
- *   ~95% precision (ticker strings like ALDX rarely appear in unrelated biotech articles)
+ *   Match is case-insensitive substring. No regex -- simple and reliable.
  */
 
 const Parser = require('rss-parser');
@@ -23,44 +19,30 @@ const RSS_PARSER = new Parser({
 
 const FEEDS = [
   {
-    source: 'rss_biopharmadive',
-    label: 'BioPharma Dive',
-    url: 'https://www.biopharmadive.com/feeds/news/',
+    source: 'rss_rttnews_biotech',
+    label: 'RTTNews',
+    url: 'https://www.rttnews.com/RSS/Biotech.xml',
   },
   {
-    source: 'rss_fiercebiotech',
-    label: 'Fierce Biotech',
-    url: 'https://www.fiercebiotech.com/rss/xml',
-  },
-  {
-    source: 'rss_endpoints',
-    label: 'Endpoints News',
-    url: 'https://endpts.com/feed/',
-  },
-  {
-    source: 'rss_biospace',
-    label: 'BioSpace',
-    url: 'https://www.biospace.com/index.rss',  // fixed: was /rss/news/ (404)
+    source: 'rss_rttnews_health',
+    label: 'RTTNews',
+    url: 'https://www.rttnews.com/RSS/HealthNews.xml',
   },
 ];
 
-// Strip HTML tags from a string — fixes Fierce Biotech titles which contain raw <a> elements
 function stripHtml(str) {
   if (typeof str !== 'string') {
-    // rss-parser may return an object if the field contains XML elements
     try { str = JSON.stringify(str); } catch (_) { return ''; }
   }
   return str.replace(/<[^>]*>/g, '').trim();
 }
 
-// Build the full set of match terms for a company (lowercase)
 function getTerms(company) {
   const terms = new Set();
   terms.add(company.ticker.toLowerCase());
   terms.add(company.company_name.toLowerCase());
   if (company.short_name) terms.add(company.short_name.toLowerCase());
   (company.search_terms || []).forEach(t => terms.add(t.toLowerCase()));
-  // Remove very short/generic terms that would cause false positives
   return [...terms].filter(t => t.length >= 4);
 }
 
@@ -79,7 +61,6 @@ async function run(companies) {
       const feedItems = feedData.items || [];
 
       for (const item of feedItems) {
-        // Sanitize title — Fierce Biotech embeds raw HTML anchor tags in titles
         const cleanTitle = stripHtml(item.title || '');
 
         const searchText = [
@@ -93,7 +74,6 @@ async function run(companies) {
           const terms = getTerms(company);
           if (!matches(searchText, terms)) continue;
 
-          // Build a stable external_id: source-scoped, company-scoped
           const rawId = item.guid || item.id || item.link || item.title || String(Date.now());
           const externalId = `${company.ticker}::${rawId}`;
 
