@@ -1,6 +1,6 @@
 /**
  * RSS News Feed Fetcher
- * Sources: GlobeNewswire Biotechnology, GlobeNewswire Pharmaceuticals
+ * Sources: GlobeNewswire Biotechnology, GlobeNewswire Pharmaceuticals, PR Newswire Biotechnology, PR Newswire Pharmaceuticals
  *
  * Matching strategy:
  *   For each article, check full text (title + snippet) against each company's
@@ -27,6 +27,16 @@ const FEEDS = [
     source: 'rss_globenewswire_pharma',
     label: 'GlobeNewswire',
     url: 'https://www.globenewswire.com/RssFeed/industry/pharmaceuticals',
+  },
+  {
+    source: 'rss_prnewswire_biotech',
+    label: 'PR Newswire',
+    url: 'https://www.prnewswire.com/rss/health-latest-news/biotechnology-list.rss',
+  },
+  {
+    source: 'rss_prnewswire_pharma',
+    label: 'PR Newswire',
+    url: 'https://www.prnewswire.com/rss/health-latest-news/pharmaceutical-list.rss',
   },
 ];
 
