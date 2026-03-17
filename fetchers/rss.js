@@ -1,6 +1,6 @@
 /**
  * RSS News Feed Fetcher
- * Sources: RTTNews Biotech, RTTNews Health News
+ * Sources: GlobeNewswire Biotechnology, GlobeNewswire Pharmaceuticals
  *
  * Matching strategy:
  *   For each article, check full text (title + snippet) against each company's
@@ -19,14 +19,14 @@ const RSS_PARSER = new Parser({
 
 const FEEDS = [
   {
-    source: 'rss_rttnews_biotech',
-    label: 'RTTNews',
-    url: 'https://www.rttnews.com/RSS/Biotech.xml',
+    source: 'rss_globenewswire_biotech',
+    label: 'GlobeNewswire',
+    url: 'https://www.globenewswire.com/RssFeed/industry/biotechnology',
   },
   {
-    source: 'rss_rttnews_health',
-    label: 'RTTNews',
-    url: 'https://www.rttnews.com/RSS/HealthNews.xml',
+    source: 'rss_globenewswire_pharma',
+    label: 'GlobeNewswire',
+    url: 'https://www.globenewswire.com/RssFeed/industry/pharmaceuticals',
   },
 ];
 
@@ -102,7 +102,7 @@ async function run(companies) {
                 item.link || item.url || null,
                 pubDate,
                 'news',
-                JSON.stringify({ feed: feed.label, author }),
+                JSON.stringify({ publication: feed.label, author }),
               ]
             );
             if (r.rows.length > 0) itemsNew++;
