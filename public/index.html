@@ -227,7 +227,7 @@ function CompanyCard({ company, activeSourceFilter, onEdit }) {
   const daysUntil = getDaysUntil(company.catalyst_date);
 
   const items = (company.feed_items || [])
-    .filter(item => !activeSourceFilter || item.source === activeSourceFilter);
+    .filter(item => !activeSourceFilter || sourceConfig(item.source).abbr === activeSourceFilter);
 
   const visibleItems = expanded ? items : items.slice(0, PREVIEW_COUNT);
   const hasMore = items.length > PREVIEW_COUNT;
@@ -336,7 +336,7 @@ function TimelineView({ data, activeSourceFilter, onSourceFilter }) {
 
   // Sort newest first and apply source filter
   const filtered = allItems
-    .filter(item => !activeSourceFilter || item.source === activeSourceFilter)
+    .filter(item => !activeSourceFilter || sourceConfig(item.source).abbr === activeSourceFilter)
     .sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0));
 
   // Group by date
@@ -957,20 +957,28 @@ function App() {
               cursor: 'pointer', fontFamily: 'Courier New, monospace' }}>
             ALL
           </button>
-          {SOURCE_KEYS.map(key => {
-            const src = SOURCES[key];
-            const active = activeSourceFilter === key;
-            return (
-              <button key={key} onClick={() => setActiveSourceFilter(active ? '' : key)}
-                style={{ background: active ? `${src.color}22` : 'transparent',
-                  border: `1px solid ${active ? src.color + '66' : '#1a2540'}`,
-                  color: active ? src.color : '#445566',
-                  padding: '3px 10px', fontSize: '8px', letterSpacing: '1px',
-                  cursor: 'pointer', fontFamily: 'Courier New, monospace' }}>
-                {src.abbr}
-              </button>
-            );
-          })}
+          {(() => {
+            const seen = new Set();
+            return SOURCE_KEYS.filter(key => {
+              const abbr = SOURCES[key].abbr;
+              if (seen.has(abbr)) return false;
+              seen.add(abbr);
+              return true;
+            }).map(key => {
+              const src = SOURCES[key];
+              const active = activeSourceFilter === src.abbr;
+              return (
+                <button key={src.abbr} onClick={() => setActiveSourceFilter(active ? '' : src.abbr)}
+                  style={{ background: active ? `${src.color}22` : 'transparent',
+                    border: `1px solid ${active ? src.color + '66' : '#1a2540'}`,
+                    color: active ? src.color : '#778899',
+                    padding: '3px 10px', fontSize: '8px', letterSpacing: '1px',
+                    cursor: 'pointer', fontFamily: 'Courier New, monospace' }}>
+                  {src.abbr}
+                </button>
+              );
+            });
+          })()}
         </div>
       </div>
 
